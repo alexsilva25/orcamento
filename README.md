@@ -4,7 +4,7 @@ Site estático em Astro para criar orçamentos de equipamentos e serviços de se
 
 ## Desenvolvimento
 
-Requer Node.js 22.23.4 ou superior e npm.
+Configurado e validado com Node.js 25.0.0 e npm.
 
 ```sh
 npm install
@@ -19,7 +19,7 @@ No painel Cloudflare, crie um projeto Pages e conecte o repositório `alexsilva2
 
 - Comando de build: `npm run build`
 - Diretório de saída: `dist`
-- Versão do Node: 22.23.4 (variável de build `NODE_VERSION`)
+- Versão do Node: 25.0.0 (variável de build `NODE_VERSION`)
 - Escolha a branch que contém o código.
 
 O Astro gera HTML estático; não precisa de adaptador, banco de dados ou variáveis secretas. Cada push na branch conectada inicia uma publicação.
