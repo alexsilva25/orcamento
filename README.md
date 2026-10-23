@@ -24,6 +24,12 @@ No painel Cloudflare, crie um projeto Pages e conecte o repositório `alexsilva2
 
 O Astro gera HTML estático; não precisa de adaptador, banco de dados ou variáveis secretas. Cada push na branch conectada inicia uma publicação.
 
+## Navegação
+
+A página inicial `/` abre o orçamento. O catálogo fica em `/produtos/`, com seleção de vários produtos e retorno ao orçamento. Os dados em edição ficam no sessionStorage da aba para preservar cliente, itens, valores e condições ao navegar entre as páginas. Os produtos selecionados são recebidos uma única vez, inclusive após recarregar. “Salvar orçamento” continua gravando a proposta no localStorage. Rascunhos da sessão não substituem o salvamento definitivo.
+
+O layout usa navegação superior compacta, tons neutros com azul da marca e painéis recolhíveis para empresa e condições. Links antigos com `/#product-catalog` encaminham ao catálogo.
+
 ## Dados
 
 O catálogo contém 473 itens/ofertas em 31 categorias, com consultas em 21 e 23/10/2026: câmeras, kits, gravadores, centrais de alarme, sensores de presença, abertura e barreira, sirenes, cercas elétricas, concertinas, baterias, cabos, fontes, conectores, fechaduras, interfones, automatizadores, armazenamento, nobreaks e acessórios. Fotografias reais ficam em `public/products/`; preços, condição de pagamento, URL da oferta, origem da imagem e data da consulta ficam em `src/data/products.json`. A foto acompanha o produto adicionado ao orçamento e à impressão/PDF.

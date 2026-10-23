@@ -1,0 +1,12 @@
+---
+const {active='quote'} = Astro.props;
+---
+<div class="site-topbar">
+  <div class="site-topbar-inner">
+    <a class="site-brand" href="/" aria-label="World Segurança Eletrônica — início"><img src="/logo-world-seguranca.png" alt="World Segurança Eletrônica" width="1254" height="1254"/><span>World <small>Segurança Eletrônica</small></span></a>
+    <nav aria-label="Navegação principal">
+      <a href="/" class:list={{selected:active==='quote'}} aria-current={active==='quote'?'page':undefined}>Orçamentos</a>
+      <a href="/produtos/" class:list={{selected:active==='catalog'}} aria-current={active==='catalog'?'page':undefined}>Produtos</a>
+    </nav>
+  </div>
+</div>
