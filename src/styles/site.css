@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-:root{font-family:'DM Sans',sans-serif;color:#17283e;background:#f7f9fc;font-synthesis:none;--blue:#075ebc;--border:#e1e7ef;--muted:#65748a}
+:root{font-family:'DM Sans',sans-serif;color:#17283e;background:#edf3f8;font-synthesis:none;--blue:#0062c9;--cyan:#00c7ed;--navy:#082550;--border:#d4dfeb;--muted:#65748a}
 *{box-sizing:border-box}body{margin:0}button,input,textarea,select{font:inherit}button,a,input,textarea,select{-webkit-tap-highlight-color:transparent}button{cursor:pointer}a{color:var(--blue);text-underline-offset:3px}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid #008bc9;outline-offset:3px}
 .site-topbar{background:#fff;border-bottom:1px solid var(--border)}.site-topbar-inner{max-width:1224px;padding:12px 28px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:24px}.site-brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:#163553;font-weight:700;font-size:17px}.site-brand img{width:52px;height:52px;object-fit:contain}.site-brand small{display:block;color:var(--muted);font-size:10px;font-weight:400;margin-top:2px}.site-topbar nav{display:flex;gap:8px}.site-topbar nav a{font-size:13px;color:var(--muted);padding:10px 14px;border-radius:5px;text-decoration:none}.site-topbar nav a.selected{color:var(--blue);background:#edf5ff;font-weight:600}
 main{max-width:1224px;margin:0 auto;padding:30px 28px 48px}header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}h1{font-size:28px;font-weight:600;letter-spacing:-.8px;margin:0}h2{font-size:15px;font-weight:600;margin:0;letter-spacing:-.2px}header p{font-size:13px;color:var(--muted);margin:7px 0 0}
@@ -9,4 +9,22 @@ button,.secondary{border:1px solid var(--border);border-radius:5px;background:#f
 @media(max-width:480px){.site-topbar-inner{padding:10px 14px;gap:10px}.site-brand{font-size:14px}.site-brand img{width:42px;height:42px}.site-brand small{font-size:8px}.site-topbar nav{gap:0}.site-topbar nav a{padding:9px;font-size:12px}main{padding:24px 14px}header{gap:12px}h1{font-size:25px}header .secondary{padding:9px 10px}.grid{grid-template-columns:1fr}.wide{grid-column:auto}section,.summary{padding:18px}.optional-panel{padding:0}.optional-panel summary{padding:17px 18px}.optional-panel .grid{padding:0 18px 18px}.saved-row{flex-wrap:wrap}.saved-row span{flex-basis:100%}}
 .clients-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:24px;align-items:start}.client-form{display:flex;flex-direction:column;gap:16px}.client-form-actions{display:flex;gap:10px;align-items:center}.client-form-actions .primary{width:auto}.client-form-actions [hidden]{display:none}#client-status,#clients-count,.client-empty{font-size:12px;color:var(--muted);line-height:1.7;margin:0}.clients-archive-toggle{display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:400;margin:16px 0}.clients-archive-toggle input{width:auto}.client-row{padding:18px 0;border-top:1px solid var(--border)}.client-row h3{font-size:14px;font-weight:600;margin:0 0 8px;overflow-wrap:anywhere}.client-row p{font-size:12px;color:var(--muted);margin:5px 0;line-height:1.6;overflow-wrap:anywhere}.client-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.client-use{background:#edf5ff;color:var(--blue);border-color:#d9e8fa}.client-register-link{font-size:12px;white-space:nowrap}.client-empty{padding:15px 0}@media(max-width:800px){.clients-layout{grid-template-columns:1fr}}@media(max-width:480px){.site-brand small{display:none}.site-topbar nav a{padding:9px 8px}.client-form .grid{grid-template-columns:1fr}}
 .client-picker{display:flex;flex-direction:column;gap:7px}
+/* Paleta da marca World: azul, ciano e prata. */
+@media screen{
+.site-topbar{background:var(--navy);border-bottom:3px solid var(--cyan)}
+.site-brand{color:#fff}.site-brand small{color:#b7cce4}
+.site-topbar nav a{color:#c9dbed}.site-topbar nav a:hover{background:#123965;color:#fff}
+.site-topbar nav a.selected{background:#00c7ed;color:#082550}
+h1,h2,.client-row h3{color:var(--navy)}
+section,.summary,.optional-panel{border-top:2px solid #b8cfe5}
+.summary{border-top:3px solid var(--cyan)}
+.primary{background:var(--blue);border-color:var(--blue)}.primary:hover{background:#004da3}
+.browse-catalog,.client-use{background:var(--blue);border-color:var(--blue);color:#fff}
+.browse-catalog:hover,.client-use:hover{background:#004da3;color:#fff}
+.status{background:#d9f6fc;color:#075476}
+.total strong{color:var(--blue)}
+input:focus,textarea:focus,select:focus{border-color:#0089d9;box-shadow:0 0 0 2px #daf7ff}
+.optional-panel summary::after{color:var(--blue)}
+}
+
 @media print{@page{size:A4;margin:18mm}body{background:white;color:#111;font-family:Arial,sans-serif}.site-topbar,main{display:none!important}#print-area{display:block}#print-area h1{font-size:25px}#print-area h2{font-size:19px;margin-top:24px}#print-area p{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}#print-area table{margin:25px 0;font-size:12px}#print-area th,#print-area td{padding:10px 6px;border-bottom:1px solid #ccc;width:auto}#print-area tr{break-inside:avoid}#print-area th{background:#eee;color:#111}}
