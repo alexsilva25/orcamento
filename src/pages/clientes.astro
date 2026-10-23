@@ -1,0 +1,90 @@
+---
+import SiteNav from '../components/SiteNav.astro';
+import '../styles/site.css';
+---
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width"/><meta name="description" content="Cadastre seus clientes e use os dados nos orçamentos."/><title>Clientes | World Segurança Eletrônica</title></head>
+<body>
+<SiteNav active="clients"/>
+<main>
+  <header><div><h1>Clientes</h1><p>Cadastre e selecione nos orçamentos. Dados salvos neste navegador.</p></div><button type="button" id="new-client">＋ Novo cliente</button></header>
+  <div class="clients-layout">
+    <section>
+      <div class="section-title"><h2 id="client-form-title">Cadastrar cliente</h2></div>
+      <form id="client-form" class="client-form">
+        <label>Nome ou razão social<input name="name" autocomplete="name" required maxlength="160" placeholder="Nome do cliente"/></label>
+        <div class="grid"><label>Telefone / WhatsApp<input name="phone" type="tel" autocomplete="tel" maxlength="40" placeholder="(85) 99999-9999"/></label><label>E-mail<input name="email" type="email" autocomplete="email" maxlength="254" placeholder="cliente@exemplo.com"/></label></div>
+        <label>Endereço<input name="address" autocomplete="street-address" maxlength="300" placeholder="Rua, número, bairro e cidade"/></label>
+        <label>Observações<textarea name="notes" rows="3" maxlength="1200" placeholder="Informações úteis para o atendimento"></textarea></label>
+        <div class="client-form-actions"><button type="submit" class="primary">Salvar cliente</button><button type="button" id="cancel-client" hidden>Cancelar edição</button></div>
+        <p id="client-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+    <section>
+      <div class="section-title"><h2>Clientes cadastrados</h2></div>
+      <label>Buscar cliente<input id="client-search" type="search" placeholder="Nome, telefone ou e-mail"/></label>
+      <label class="clients-archive-toggle"><input id="show-archived" type="checkbox"/> Mostrar arquivados</label>
+      <p id="clients-count" role="status" aria-live="polite"></p>
+      <div id="clients-list"></div>
+    </section>
+  </div>
+</main>
+<script>
+import {readClients, writeClients, normalizeClient, clientsKey, selectedClientKey, type Client} from '../lib/clients';
+const form=document.querySelector<HTMLFormElement>('#client-form')!;
+const search=document.querySelector<HTMLInputElement>('#client-search')!;
+const archived=document.querySelector<HTMLInputElement>('#show-archived')!;
+const list=document.querySelector<HTMLElement>('#clients-list')!;
+const status=document.querySelector<HTMLElement>('#client-status')!;
+const cancel=document.querySelector<HTMLButtonElement>('#cancel-client')!;
+let clients:Client[]=[],editingId:string|null=null;
+const field=(name:string)=>form.elements.namedItem(name) as HTMLInputElement;
+function message(text:string){status.textContent=text;}
+function reset(){form.reset();editingId=null;document.querySelector('#client-form-title')!.textContent='Cadastrar cliente';cancel.hidden=true;}
+function load(){try{clients=readClients();return true;}catch{message('Não foi possível ler os clientes. Verifique o armazenamento do navegador antes de salvar.');return false;}}
+function edit(client:Client){editingId=client.id;for(const name of ['name','phone','email','address','notes'] as const)field(name).value=client[name];document.querySelector('#client-form-title')!.textContent='Editar cliente';cancel.hidden=false;message('Editando '+client.name+'.');form.scrollIntoView({behavior:'smooth',block:'start'});field('name').focus({preventScroll:true});}
+function toggleArchive(client:Client){
+  if(!load())return;
+  const current=clients.find(c=>c.id===client.id);if(!current){message('Cliente não encontrado. Atualize a página.');return;}
+  const next=clients.map(c=>c.id===client.id?{...c,archived:!c.archived,updatedAt:new Date().toISOString()}:c);
+  try{writeClients(next);clients=next;if(editingId===client.id)reset();render();message(current.archived?'Cliente restaurado.':'Cliente arquivado. Você pode restaurá-lo em Mostrar arquivados.');}catch{message('Não foi possível salvar. Verifique o armazenamento do navegador.');}
+}
+function use(client:Client){
+  try{sessionStorage.setItem(selectedClientKey,client.id);window.location.assign('/#quote');}
+  catch{message('Não foi possível selecionar o cliente. Verifique o armazenamento do navegador.');}
+}
+function render(){
+  list.replaceChildren();const terms=normalizeClient(search.value.trim()).split(/\s+/).filter(Boolean);
+  const digits=search.value.replace(/\D/g,'');
+  const matches=clients.filter(c=>(archived.checked||!c.archived)&&terms.every(term=>normalizeClient(c.name+' '+c.phone+' '+c.email).includes(term)||(/^\d+$/.test(term)&&digits.length>2&&c.phone.replace(/\D/g,'').includes(digits)))).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  document.querySelector('#clients-count')!.textContent=matches.length+' cliente(s) encontrado(s)';
+  if(!matches.length){const p=document.createElement('p');p.className='client-empty';p.textContent=clients.length?'Nenhum cliente corresponde à busca.':'Nenhum cliente cadastrado. Preencha os dados ao lado.';list.append(p);return;}
+  for(const client of matches){
+    const row=document.createElement('article');row.className='client-row';
+    const title=document.createElement('h3');title.textContent=client.name+(client.archived?' · Arquivado':'');row.append(title);
+    for(const text of [client.phone,client.email,client.address])if(text){const p=document.createElement('p');p.textContent=text;row.append(p);}
+    const actions=document.createElement('div');actions.className='client-row-actions';
+    const button=(label:string,action:()=>void)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=action;actions.append(b);return b;};
+    if(!client.archived)button('Usar no orçamento',()=>use(client)).className='client-use';
+    button('Editar',()=>edit(client));button(client.archived?'Restaurar':'Arquivar',()=>toggleArchive(client));
+    row.append(actions);list.append(row);
+  }
+}
+form.onsubmit=event=>{
+  event.preventDefault();if(!form.reportValidity())return;
+  const name=field('name').value.trim();if(!name){field('name').focus();message('Informe o nome do cliente.');return;}
+  if(!load())return;
+  const existing=clients.find(c=>c.id===editingId);if(editingId&&!existing){message('O cliente foi alterado em outra aba. Atualize a página antes de salvar.');return;}
+  const client:Client={id:editingId||crypto.randomUUID(),name,phone:field('phone').value.trim(),email:field('email').value.trim(),address:field('address').value.trim(),notes:field('notes').value.trim(),updatedAt:new Date().toISOString(),archived:existing?.archived||false};
+  const next=existing?clients.map(c=>c.id===client.id?client:c):[...clients,client];
+  try{writeClients(next);clients=next;reset();render();message(existing?'Cliente atualizado. Os orçamentos já salvos mantêm os dados anteriores.':'Cliente cadastrado. Selecione Usar no orçamento para continuar.');}
+  catch{message('Não foi possível salvar. O armazenamento pode estar cheio ou bloqueado.');}
+};
+document.querySelector<HTMLButtonElement>('#new-client')!.onclick=()=>{reset();message('Novo cadastro.');field('name').focus();};
+cancel.onclick=()=>{reset();message('Edição cancelada.');};search.oninput=render;archived.onchange=render;
+window.addEventListener('storage',event=>{if(event.key===clientsKey){if(load())render();}});
+if(load())render();
+</script>
+</body>
+</html>

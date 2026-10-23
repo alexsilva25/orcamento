@@ -30,6 +30,12 @@ A página inicial `/` abre o orçamento. O catálogo fica em `/produtos/`, com s
 
 O layout usa navegação superior compacta, tons neutros com azul da marca e painéis recolhíveis para empresa e condições. Links antigos com `/#product-catalog` encaminham ao catálogo.
 
+## Clientes
+
+A página `/clientes/` cadastra nome/razão social, telefone, e-mail, endereço e observações no localStorage (`orcaseg-clients-v1`). Inclui busca, edição, arquivamento recuperável e restauração. Os cadastros ficam apenas no navegador, sem sincronização entre dispositivos.
+
+“Usar no orçamento” e o seletor “Cliente cadastrado” preenchem os dados de contato mantendo itens, valores e demais campos do rascunho. O e-mail é incluído na impressão/PDF quando informado; observações internas do cadastro não são copiadas à proposta. Os orçamentos guardam os dados do cliente no momento do salvamento: editar ou arquivar um cadastro não altera propostas anteriores.
+
 ## Dados
 
 O catálogo contém 473 itens/ofertas em 31 categorias, com consultas em 21 e 23/10/2026: câmeras, kits, gravadores, centrais de alarme, sensores de presença, abertura e barreira, sirenes, cercas elétricas, concertinas, baterias, cabos, fontes, conectores, fechaduras, interfones, automatizadores, armazenamento, nobreaks e acessórios. Fotografias reais ficam em `public/products/`; preços, condição de pagamento, URL da oferta, origem da imagem e data da consulta ficam em `src/data/products.json`. A foto acompanha o produto adicionado ao orçamento e à impressão/PDF.

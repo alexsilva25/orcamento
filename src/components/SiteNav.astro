@@ -7,6 +7,7 @@ const {active='quote'} = Astro.props;
     <nav aria-label="Navegação principal">
       <a href="/" class:list={{selected:active==='quote'}} aria-current={active==='quote'?'page':undefined}>Orçamentos</a>
       <a href="/produtos/" class:list={{selected:active==='catalog'}} aria-current={active==='catalog'?'page':undefined}>Produtos</a>
+      <a href="/clientes/" class:list={{selected:active==='clients'}} aria-current={active==='clients'?'page':undefined}>Clientes</a>
     </nav>
   </div>
 </div>
