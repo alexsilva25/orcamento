@@ -2,6 +2,7 @@ export const normalize = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 
 export function classifyProduct(name, fallback = 'Acessórios e automação') {
   const text = normalize(name);
+  if (/cabo.*(alta.*isolacao|alta.*tensao|cerca)|(alta.*isolacao|alta.*tensao).*cabo/.test(text)) return 'Cabos para cerca elétrica';
   if (/concertina|rede laminada|lanca.*muro/.test(text)) return 'Concertinas e proteção perimetral';
   if (/cerca|eletrificador|haste|arame|isolador|aterramento/.test(text)) return 'Cercas elétricas';
   if (/bateria|pilha/.test(text) && !/com bateria|inclu[is]/.test(text)) return 'Baterias e pilhas';

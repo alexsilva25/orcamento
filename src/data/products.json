@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-10-23T15:55:45.884Z",
+  "fetchedAt": "2026-10-23T16:40:09.249Z",
   "products": [
     {
       "id": "intelbras-4820600",
@@ -896,6 +896,48 @@
       "imageSource": "https://cdn.awsli.com.br/800x800/590/590469/produto/26430089/6360723a2b.jpg",
       "fetchedAt": "2026-10-23T15:55:45.884Z",
       "image": "/products/totalseg-3ff95a87fe49.png"
+    },
+    {
+      "id": "cabo-cerca-35a1c48fb9f8",
+      "name": "Cabo Alta Isolação 5mm para Cerca Elétrica 50 metros Telecam",
+      "brand": "Telecam",
+      "category": "Cabos para cerca elétrica",
+      "price": 69.21,
+      "priceBasis": "À vista no Pix · Rolo de 50 m",
+      "source": "https://www.zaloninfo.com.br/seguranca/cerca-eletrica/cabo-alta-isolacao-5mm-flex-pr-50m-telecam-cabos",
+      "sourceName": "Zalon",
+      "seller": "Zalon",
+      "imageSource": "https://images.tcdn.com.br/img/img_prod/614618/cabo_alta_isolacao_5mm_para_cerca_eletrica_50_metros_telecam_17257_1_a16ff2d85336aaf0a6904140fa2ae827_20250804160957.jpg",
+      "image": "/products/cabo-cerca-35a1c48fb9f8.jpg",
+      "fetchedAt": "2026-10-23T16:40:09.249Z"
+    },
+    {
+      "id": "cabo-cerca-e587a99a9aac",
+      "name": "Cabo Alta Isolação 5mm Rolo 50Mts PR",
+      "brand": "Bufallo",
+      "category": "Cabos para cerca elétrica",
+      "price": 62,
+      "priceBasis": "Preço anunciado · Rolo de 50 m",
+      "source": "https://www.futuraseg.net.br/alarme-e-cerca-eletrica-6705776f87b15/acessorios/cabo-alta-isolacao-5mm-rolo-50mts-pr",
+      "sourceName": "FuturaSeg",
+      "seller": "FuturaSeg",
+      "imageSource": "https://cdn.dlojavirtual.com/static1/109304/sku/779116c1af0186a6d7f41d2b505b6f74.jpeg",
+      "image": "/products/cabo-cerca-e587a99a9aac.jpg",
+      "fetchedAt": "2026-10-23T16:40:09.249Z"
+    },
+    {
+      "id": "cabo-cerca-9207a9d69990",
+      "name": "Cabo Alta Isolação 7mm (50 Metros)",
+      "brand": "Conforme fornecedor",
+      "category": "Cabos para cerca elétrica",
+      "price": 189.15,
+      "priceBasis": "Boleto à vista · Rolo de 50 m",
+      "source": "https://www.segcftv.com.br/cabo-alta-isolacao-7mm-50-metros",
+      "sourceName": "SEGCFTV",
+      "seller": "SEGCFTV",
+      "imageSource": "https://cdn.awsli.com.br/800x800/773/773829/produto/121138417/76eb28facc.jpg",
+      "image": "/products/cabo-cerca-9207a9d69990.jpg",
+      "fetchedAt": "2026-10-23T16:40:09.249Z"
     },
     {
       "id": "totalseg-6fc494d18c2f",
