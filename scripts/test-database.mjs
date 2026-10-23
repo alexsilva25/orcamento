@@ -1,0 +1,66 @@
+import {spawn,spawnSync} from 'node:child_process';
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
+import {randomUUID,createHash} from 'node:crypto';
+import assert from 'node:assert/strict';
+const state='.local/test-'+randomUUID();mkdirSync(state,{recursive:true});
+const cli='node_modules/wrangler/bin/wrangler.js';
+const run=(args)=>{const result=spawnSync(process.execPath,[cli,...args],{encoding:'utf8'});if(result.status!==0)throw Error(result.stderr||result.stdout);};
+run(['d1','execute','orcaseg-world','--local','--persist-to',state,'--file','migrations/0001_storage.sql','--yes']);
+const catalog=JSON.parse(readFileSync('src/data/products.json','utf8'));
+const quote=value=>"'"+value.replaceAll("'","''")+"'";
+writeFileSync(state+'/catalog.sql',catalog.products.map(p=>`INSERT INTO products(id,data) VALUES(${quote(p.id)},${quote(JSON.stringify(p))});`).join('\n'));
+run(['d1','execute','orcaseg-world','--local','--persist-to',state,'--file',state+'/catalog.sql','--yes']);
+const setupToken=randomUUID();const sql=state+'/setup.sql';writeFileSync(sql,`INSERT INTO setup(id,token_hash) VALUES(1,'${createHash('sha256').update(setupToken).digest('hex')}');`);
+run(['d1','execute','orcaseg-world','--local','--persist-to',state,'--file',sql,'--yes']);
+const port=8795,base='http://127.0.0.1:'+port;
+const child=spawn(process.execPath,[cli,'pages','dev','dist','--ip','127.0.0.1','--port',String(port),'--persist-to',state,'--log-level','error'],{stdio:['ignore','pipe','pipe']});
+let logs='';child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);
+let checks=0;
+async function request(path,{method='GET',data,cookie,origin=base}={}){
+  const response=await fetch(base+'/api/'+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})});
+  return {status:response.status,data:await response.json(),cookie:response.headers.get('set-cookie')?.split(';')[0]};
+}
+const check=(value,expected)=>{assert.deepEqual(value,expected);checks++;};
+try{
+  let up=false;for(let i=0;i<100;i++){try{const r=await request('auth');if(r.status===200){up=true;break;}}catch{}await new Promise(r=>setTimeout(r,300));}assert.ok(up,logs);
+  check((await request('data/clients')).status,401);
+  check((await request('auth')).data.setupRequired,true);
+  check((await request('products')).data.products.length,476);
+  const credentials={username:'test-admin',password:'SenhaDeTeste-2026!'};
+  check((await request('auth',{method:'POST',origin:'https://outro.example',data:{action:'setup',...credentials,token:setupToken}})).status,403);
+  check((await request('auth',{method:'POST',data:{action:'setup',...credentials,token:'wrong'}})).status,403);
+  const setup=await request('auth',{method:'POST',data:{action:'setup',...credentials,token:setupToken}});check(setup.status,200);const cookie=setup.cookie;
+  check((await request('auth',{method:'POST',data:{action:'setup',...credentials,token:setupToken}})).status,403);
+  check((await request('auth',{method:'POST',data:{action:'login',...credentials,password:'incorrect'}})).status,401);
+  const second=await request('auth',{method:'POST',data:{action:'login',...credentials}});check(second.status,200);
+  const client={id:'test-client',name:'Cliente de teste',phone:'',email:'',address:'',notes:'',updatedAt:new Date().toISOString()};
+  check((await request('data/clients/test-client',{method:'PUT',cookie,data:{version:0,data:client}})).data.version,1);
+  check((await request('data/clients',{cookie:second.cookie})).data.records[0].name,client.name);
+  check((await request('data/clients/test-client',{method:'PUT',cookie,data:{version:1,data:{...client,name:'Cliente atualizado'}}})).data.version,2);
+  check((await request('data/clients/test-client',{method:'PUT',cookie:second.cookie,data:{version:1,data:client}})).status,409);
+  check((await request('data/clients/test-client',{method:'PUT',cookie,data:{version:2,data:{...client,archived:true}}})).data.version,3);
+  check((await request('data/clients/test-client',{cookie})).data.record.archived,true);
+  check((await request('data/clients/test-client',{method:'PUT',cookie,data:{version:3,data:{...client,archived:false}}})).data.version,4);
+  const quote={id:'test-quote',fields:{client:client.name,discount:'10',extra:'20'},items:[{description:'Câmera',qty:2,price:150,image:'/products/example.png'}]};
+  check((await request('data/quotes/test-quote',{method:'PUT',cookie,data:{version:0,data:quote}})).data.version,1);
+  check((await request('data/quotes/test-quote',{cookie:second.cookie})).data.record.items,quote.items);
+  check((await request('data/quotes/bad',{method:'PUT',cookie,data:{version:0,data:{...quote,id:'bad',items:[{description:'Invalid',qty:-1,price:10}]}}})).status,400);
+  check((await request('data/drafts/current',{method:'PUT',cookie,data:{version:0,data:{...quote,_quoteVersion:1}}})).status,200);
+  check((await request('data/preferences/company',{method:'PUT',cookie,data:{version:0,data:{company:'World',companyPhone:'123'}}})).status,200);
+  const record={...client,id:'legacy-client'};const migration={type:'clients',records:[{id:record.id,data:record}]};
+  check((await request('import',{method:'POST',cookie,data:migration})).data.imported,1);
+  check((await request('import',{method:'POST',cookie,data:migration})).data.imported,0);
+  check((await request('data/quotes/test-quote',{method:'DELETE',cookie,data:{version:1}})).status,200);
+  check((await request('import',{method:'POST',cookie,data:{type:'quotes',records:[{id:quote.id,data:quote}]}})).data.imported,0);
+  check((await request('data/quotes/test-quote',{cookie})).data.record,null);
+  check((await request('data/clients/test-client',{method:'PUT',cookie,origin:'https://evil.example',data:{version:4,data:client}})).status,403);
+  const changed=await request('auth',{method:'POST',cookie,data:{action:'password',currentPassword:credentials.password,password:'OutraSenhaDeTeste-2026!'}});check(changed.status,200);
+  check((await request('data/clients',{cookie:second.cookie})).status,401);
+  check((await request('auth',{method:'POST',cookie:changed.cookie,data:{action:'logout'}})).status,200);
+  check((await request('data/clients',{cookie:changed.cookie})).status,401);
+  for(let i=0;i<10;i++)await request('auth',{method:'POST',data:{action:'login',...credentials,password:'wrong'}});
+  check((await request('auth',{method:'POST',data:{action:'login',...credentials}})).status,429);
+  console.log(checks+' verificações passaram: autenticação, isolamento local, CRUD, conflitos, importação idempotente, catálogo, senha e sessões.');
+}finally{
+  if(process.platform==='win32')spawnSync('taskkill',['/pid',String(child.pid),'/T','/F'],{stdio:'ignore'});else child.kill();
+}

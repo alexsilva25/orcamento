@@ -5,10 +5,10 @@ import '../styles/site.css';
 <!doctype html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width"/><meta name="description" content="Cadastre seus clientes e use os dados nos orçamentos."/><title>Clientes | World Segurança Eletrônica</title></head>
-<body>
+<body data-private>
 <SiteNav active="clients"/>
 <main>
-  <header><div><h1>Clientes</h1><p>Cadastre e selecione nos orçamentos. Dados salvos neste navegador.</p></div><button type="button" id="new-client">＋ Novo cliente</button></header>
+  <header><div><h1>Clientes</h1><p>Cadastre e selecione nos orçamentos. Dados salvos no banco de dados.</p></div><button type="button" id="new-client">＋ Novo cliente</button></header>
   <div class="clients-layout">
     <section>
       <div class="section-title"><h2 id="client-form-title">Cadastrar cliente</h2></div>
@@ -31,24 +31,24 @@ import '../styles/site.css';
   </div>
 </main>
 <script>
-import {readClients, writeClients, normalizeClient, clientsKey, selectedClientKey, type Client} from '../lib/clients';
+import {readClients, writeClient, normalizeClient, selectedClientKey, type Client} from '../lib/clients';
+import {initCloud,showCloudError} from '../lib/cloud';
 const form=document.querySelector<HTMLFormElement>('#client-form')!;
 const search=document.querySelector<HTMLInputElement>('#client-search')!;
 const archived=document.querySelector<HTMLInputElement>('#show-archived')!;
 const list=document.querySelector<HTMLElement>('#clients-list')!;
 const status=document.querySelector<HTMLElement>('#client-status')!;
 const cancel=document.querySelector<HTMLButtonElement>('#cancel-client')!;
-let clients:Client[]=[],editingId:string|null=null;
+let clients:Client[]=[],editingId:string|null=null,editingVersion=0;
 const field=(name:string)=>form.elements.namedItem(name) as HTMLInputElement;
 function message(text:string){status.textContent=text;}
-function reset(){form.reset();editingId=null;document.querySelector('#client-form-title')!.textContent='Cadastrar cliente';cancel.hidden=true;}
-function load(){try{clients=readClients();return true;}catch{message('Não foi possível ler os clientes. Verifique o armazenamento do navegador antes de salvar.');return false;}}
-function edit(client:Client){editingId=client.id;for(const name of ['name','phone','email','address','notes'] as const)field(name).value=client[name];document.querySelector('#client-form-title')!.textContent='Editar cliente';cancel.hidden=false;message('Editando '+client.name+'.');form.scrollIntoView({behavior:'smooth',block:'start'});field('name').focus({preventScroll:true});}
-function toggleArchive(client:Client){
-  if(!load())return;
+function reset(){form.reset();editingId=null;editingVersion=0;document.querySelector('#client-form-title')!.textContent='Cadastrar cliente';cancel.hidden=true;}
+async function load(){clients=await readClients();return true;}
+function edit(client:Client){editingId=client.id;editingVersion=client._version||0;for(const name of ['name','phone','email','address','notes'] as const)field(name).value=client[name];document.querySelector('#client-form-title')!.textContent='Editar cliente';cancel.hidden=false;message('Editando '+client.name+'.');form.scrollIntoView({behavior:'smooth',block:'start'});field('name').focus({preventScroll:true});}
+async function toggleArchive(client:Client){
   const current=clients.find(c=>c.id===client.id);if(!current){message('Cliente não encontrado. Atualize a página.');return;}
-  const next=clients.map(c=>c.id===client.id?{...c,archived:!c.archived,updatedAt:new Date().toISOString()}:c);
-  try{writeClients(next);clients=next;if(editingId===client.id)reset();render();message(current.archived?'Cliente restaurado.':'Cliente arquivado. Você pode restaurá-lo em Mostrar arquivados.');}catch{message('Não foi possível salvar. Verifique o armazenamento do navegador.');}
+  const updated={...client,archived:!client.archived,updatedAt:new Date().toISOString()};
+  try{await writeClient(updated);await load();if(editingId===client.id)reset();render();message(current.archived?'Cliente restaurado.':'Cliente arquivado. Você pode restaurá-lo em Mostrar arquivados.');}catch(error){message(error instanceof Error?error.message:'Não foi possível salvar no banco.');}
 }
 function use(client:Client){
   try{sessionStorage.setItem(selectedClientKey,client.id);window.location.assign('/#quote');}
@@ -71,20 +71,18 @@ function render(){
     row.append(actions);list.append(row);
   }
 }
-form.onsubmit=event=>{
+form.onsubmit=async event=>{
   event.preventDefault();if(!form.reportValidity())return;
   const name=field('name').value.trim();if(!name){field('name').focus();message('Informe o nome do cliente.');return;}
-  if(!load())return;
   const existing=clients.find(c=>c.id===editingId);if(editingId&&!existing){message('O cliente foi alterado em outra aba. Atualize a página antes de salvar.');return;}
-  const client:Client={id:editingId||crypto.randomUUID(),name,phone:field('phone').value.trim(),email:field('email').value.trim(),address:field('address').value.trim(),notes:field('notes').value.trim(),updatedAt:new Date().toISOString(),archived:existing?.archived||false};
-  const next=existing?clients.map(c=>c.id===client.id?client:c):[...clients,client];
-  try{writeClients(next);clients=next;reset();render();message(existing?'Cliente atualizado. Os orçamentos já salvos mantêm os dados anteriores.':'Cliente cadastrado. Selecione Usar no orçamento para continuar.');}
-  catch{message('Não foi possível salvar. O armazenamento pode estar cheio ou bloqueado.');}
+  const client:Client={_version:editingId?editingVersion:0,id:editingId||crypto.randomUUID(),name,phone:field('phone').value.trim(),email:field('email').value.trim(),address:field('address').value.trim(),notes:field('notes').value.trim(),updatedAt:new Date().toISOString(),archived:existing?.archived||false};
+  const submit=form.querySelector<HTMLButtonElement>('button[type="submit"]')!;submit.disabled=true;
+  try{await writeClient(client);await load();reset();render();message(existing?'Cliente atualizado. Os orçamentos já salvos mantêm os dados anteriores.':'Cliente cadastrado. Selecione Usar no orçamento para continuar.');}
+  catch(error){message(error instanceof Error?error.message:'Não foi possível salvar no banco.');}finally{submit.disabled=false;}
 };
 document.querySelector<HTMLButtonElement>('#new-client')!.onclick=()=>{reset();message('Novo cadastro.');field('name').focus();};
 cancel.onclick=()=>{reset();message('Edição cancelada.');};search.oninput=render;archived.onchange=render;
-window.addEventListener('storage',event=>{if(event.key===clientsKey){if(load())render();}});
-if(load())render();
+initCloud().then(async()=>{await load();render();document.body.dataset.ready='true';const imported=sessionStorage.getItem('orcaseg-import-message');if(imported){message(imported);sessionStorage.removeItem('orcaseg-import-message');}}).catch(showCloudError);
 </script>
 </body>
 </html>

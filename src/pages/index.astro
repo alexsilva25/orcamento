@@ -5,38 +5,44 @@ import '../styles/site.css';
 <!doctype html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width"/><meta name="description" content="Crie orçamentos de equipamentos e serviços de segurança."/><title>Orçamentos | World Segurança Eletrônica</title></head>
-<body>
+<body data-private>
 <SiteNav active="quote"/>
 <main><header><div><h1>Orçamento</h1><p>Crie sua proposta.</p></div><button id="new" class="secondary">＋ Novo</button></header>
-<div class="toolbar"><span class="status">● Rascunho</span><span id="number"></span><span class="privacy">Seus dados ficam neste navegador</span></div>
+<div class="toolbar"><span class="status">● Rascunho</span><span id="number"></span><span class="privacy">Banco conectado</span></div>
 <form id="quote"><div class="layout"><div class="editor">
 
 <section><div class="section-title"><div><h2>Dados do cliente</h2></div><a href="/clientes/" class="client-register-link">Cadastrar cliente</a></div><div class="grid"><div class="wide client-picker"><label for="quote-client">Cliente cadastrado</label><select name="clientId" id="quote-client"><option value="">Preencher manualmente</option></select></div><label>Nome ou razão social<input name="client" placeholder="Para quem é esta proposta?" required maxlength="160"/></label><label>Telefone<input name="phone" type="tel" placeholder="Telefone do cliente"/></label><label class="wide">E-mail<input name="clientEmail" type="email" maxlength="254" placeholder="E-mail do cliente"/></label><label class="wide">Endereço da instalação<input name="address" placeholder="Rua, número, bairro e cidade"/></label><label>Data de emissão<input name="date" type="date" required/></label><label>Validade (dias)<input name="validity" type="number" min="1" max="365" value="15" required/></label></div></section>
 <section><div class="section-title"><div><h2>Equipamentos e serviços</h2></div></div><div class="catalog"><a class="browse-catalog" href="/produtos/">＋ Escolher produtos</a></div><div class="table-scroll"><table><thead><tr><th>Descrição</th><th>Qtd.</th><th>Unitário (R$)</th><th>Total</th><th><span class="sr-only">Ações</span></th></tr></thead><tbody id="items"></tbody></table></div><button type="button" id="add" class="add-item">＋ Adicionar item personalizado</button></section>
 <details class="optional-panel"><summary>Condições e observações</summary><div class="grid"><label>Forma de pagamento<input name="payment" placeholder="Ex.: 50% na aprovação e 50% na entrega"/></label><label>Prazo de execução<input name="deadline" placeholder="Ex.: 5 dias úteis após aprovação"/></label><label class="wide">Observações e garantia<textarea name="notes" rows="4" placeholder="Descreva o escopo, a garantia e o que está incluído."></textarea></label></div></details>
 <details class="optional-panel"><summary>Dados da sua empresa</summary><div class="grid"><label>Empresa<input name="company" placeholder="Nome da sua empresa" maxlength="160"/></label><label>Telefone / WhatsApp<input name="companyPhone" type="tel" placeholder="(85) 99999-9999"/></label></div></details></div><aside class="summary"><h2>Resumo</h2><div class="summary-line"><span>Equipamentos e serviços</span><strong id="subtotal"></strong></div><label>Desconto (R$)<input name="discount" type="number" value="0" min="0" step="0.01" required/></label><label>Deslocamento / outros (R$)<input name="extra" type="number" value="0" min="0" step="0.01" required/></label><div class="total"><span>Total do orçamento</span><strong id="total"></strong></div><button type="submit" class="primary">Salvar orçamento</button><button type="button" id="print" class="secondary">Imprimir / PDF</button><p id="feedback" role="status" aria-live="polite">Preencha os dados para começar.</p></aside></div></form>
-<section class="saved"><div class="section-title"><div><h2>Orçamentos salvos</h2><p>Continue de onde parou neste navegador.</p></div></div><div id="saved-list"></div></section><footer>World Segurança Eletrônica</footer></main><article id="print-area"></article>
+<section class="saved"><div class="section-title"><div><h2>Orçamentos salvos</h2><p>Seus orçamentos disponíveis em qualquer dispositivo.</p></div></div><div id="saved-list"></div></section><footer>World Segurança Eletrônica</footer></main><article id="print-area"></article>
 <script>
-import {readClients,clientsKey,selectedClientKey} from '../lib/clients';
+import {readClients,clientsKey,selectedClientKey,type Client} from '../lib/clients';
+import {ApiError,initCloud,showCloudError,listRecords,getRecord,putRecord,removeRecord,type Versioned} from '../lib/cloud';
 type Item = {description:string; qty:number; price:number; image?:string};
-type Quote = {id:string; fields:Record<string,string>; items:Item[]};
+type Quote = Versioned & {id:string; fields:Record<string,string>; items:Item[]};
 const form=document.querySelector<HTMLFormElement>('#quote')!;
 const $=(s:string)=>document.querySelector<HTMLElement>(s)!;
 const money=(n:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n);
-const storageKey='orcaseg-quotes-v1';
-let id='',items:Item[]=[],saved:Quote[]=[],ready=false;
+let id='',items:Item[]=[],saved:Quote[]=[],ready=false,quoteVersion=0,cloudDraftVersion=0,draftBlocked=false;
+let clients:Client[]=[],companySettings:({company:string;companyPhone:string}&Versioned)|null=null;
 const feedback=(s:string)=>{$('#feedback').textContent=s};
 function field(name:string){return form.elements.namedItem(name) as HTMLInputElement;}
-function load(){try {const data=JSON.parse(localStorage.getItem(storageKey)||'[]'); if(!Array.isArray(data))throw Error(); saved=data.filter(q=>q && typeof q.id==='string' && q.fields && typeof q.fields==='object' && Array.isArray(q.items) && q.items.every((i:Item)=>typeof i.description==='string'&&Number.isFinite(i.qty)&&i.qty>0&&Number.isFinite(i.price)&&i.price>=0&&(i.image===undefined||(typeof i.image==='string'&&i.image.startsWith('/products/'))))); }catch{feedback('Não foi possível ler os dados locais. Exporte propostas importantes como PDF.');}}
+async function load(){saved=await listRecords<Quote>('quotes');}
 function totals(){const sub=items.reduce((sum,i)=>sum+i.qty*i.price,0); const total=Math.max(0,sub+Math.max(0,Number(field('extra').value)||0)-Math.max(0,Number(field('discount').value)||0)); $('#subtotal').textContent=money(sub);$('#total').textContent=money(total);return {sub,total};}
 function renderItems(){const body=$('#items');body.replaceChildren(); items.forEach((item,index)=>{const row=document.createElement('tr');(['description','qty','price'] as const).forEach(key=>{const td=document.createElement('td'),input=document.createElement('input');input.type=key==='description'?'text':'number';input.value=String(item[key]);input.required=true;input.setAttribute('aria-label',({description:'Descrição',qty:'Quantidade',price:'Preço unitário'})[key]+' do item '+(index+1)); if(key!=='description'){input.min=key==='qty'?'0.01':'0';input.step='0.01';}input.addEventListener('input',()=>{if(key==='description')item.description=input.value;else item[key]=Number(input.value); amount.textContent=money(item.qty*item.price);totals();});if(key==='description'&&item.image?.startsWith('/products/')){const wrap=document.createElement('div');wrap.className='description-with-photo';const photo=document.createElement('img');photo.className='item-photo';photo.src=item.image;photo.alt=item.description;wrap.append(photo,input);td.append(wrap);}else td.append(input);row.append(td);});const amount=document.createElement('td');amount.className='item-total';amount.textContent=money(item.qty*item.price);row.append(amount);const td=document.createElement('td'),remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.className='remove';remove.setAttribute('aria-label','Remover item '+(index+1));remove.onclick=()=>{items.splice(index,1);renderItems();};td.append(remove);row.append(td);body.append(row);});totals();if(ready)persistDraft();}
-function reset(){form.reset();id=crypto.randomUUID();field('date').value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);items=[{description:'',qty:1,price:0}];$('#number').textContent='Proposta #'+id.slice(0,8).toUpperCase();renderItems();feedback('Novo orçamento iniciado.');}
-function renderSaved(){const root=$('#saved-list');root.replaceChildren();if(!saved.length){root.textContent='Nenhum orçamento salvo ainda.';return;}saved.forEach(q=>{const row=document.createElement('div');row.className='saved-row';const title=document.createElement('span');title.textContent=(q.fields.client||'Cliente sem nome')+' · '+(q.fields.date||'')+' · #'+q.id.slice(0,8).toUpperCase();const open=document.createElement('button');open.type='button';open.textContent='Abrir';open.onclick=()=>{form.reset();id=q.id;Object.entries(q.fields).forEach(([name,value])=>{const input=form.elements.namedItem(name);if(input instanceof HTMLInputElement||input instanceof HTMLTextAreaElement||input instanceof HTMLSelectElement)input.value=String(value);});items=structuredClone(q.items);$('#number').textContent='Proposta #'+id.slice(0,8).toUpperCase();renderItems();feedback('Orçamento carregado.');window.scrollTo({top:0,behavior:'smooth'});};const del=document.createElement('button');del.type='button';del.textContent='Excluir';del.onclick=()=>{if(!confirm('Excluir o orçamento de '+(q.fields.client||'este cliente')+'?'))return;const next=saved.filter(x=>x.id!==q.id);try{localStorage.setItem(storageKey,JSON.stringify(next));saved=next;renderSaved();feedback('Orçamento excluído.');}catch{feedback('Não foi possível excluir. Verifique o armazenamento do navegador.');}};row.append(title,open,del);root.append(row);});}
+function reset(){form.reset();quoteVersion=0;if(companySettings){field('company').value=companySettings.company;field('companyPhone').value=companySettings.companyPhone;}id=crypto.randomUUID();field('date').value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);items=[{description:'',qty:1,price:0}];$('#number').textContent='Proposta #'+id.slice(0,8).toUpperCase();renderItems();feedback('Novo orçamento iniciado.');}
+function renderSaved(){const root=$('#saved-list');root.replaceChildren();if(!saved.length){root.textContent='Nenhum orçamento salvo ainda.';return;}saved.forEach(q=>{const row=document.createElement('div');row.className='saved-row';const title=document.createElement('span');title.textContent=(q.fields.client||'Cliente sem nome')+' · '+(q.fields.date||'')+' · #'+q.id.slice(0,8).toUpperCase();const open=document.createElement('button');open.type='button';open.textContent='Abrir';open.onclick=()=>{form.reset();id=q.id;quoteVersion=q._version||0;Object.entries(q.fields).forEach(([name,value])=>{const input=form.elements.namedItem(name);if(input instanceof HTMLInputElement||input instanceof HTMLTextAreaElement||input instanceof HTMLSelectElement)input.value=String(value);});items=structuredClone(q.items);$('#number').textContent='Proposta #'+id.slice(0,8).toUpperCase();renderItems();feedback('Orçamento carregado.');window.scrollTo({top:0,behavior:'smooth'});};const del=document.createElement('button');del.type='button';del.textContent='Excluir';del.onclick=async()=>{if(!confirm('Excluir o orçamento de '+(q.fields.client||'este cliente')+'?'))return;try{del.disabled=true;await removeRecord('quotes',q.id,q._version||0);saved=saved.filter(x=>x.id!==q.id);renderSaved();feedback('Orçamento excluído.');}catch(error){feedback(error instanceof Error?error.message:'Não foi possível excluir.');del.disabled=false;}};row.append(title,open,del);root.append(row);});}
 function validate(){if(!form.reportValidity())return false;if(!items.length||items.some(i=>!i.description.trim()||!Number.isFinite(i.qty)||i.qty<=0||!Number.isFinite(i.price)||i.price<0)){feedback('Adicione ao menos um item com descrição, quantidade e preço válidos.');return false;}const sub=totals().sub;if(Number(field('discount').value)>sub+Number(field('extra').value)){feedback('O desconto não pode exceder o valor da proposta.');return false;}return true;}
 $('#add').onclick=()=>{items.push({description:'',qty:1,price:0});renderItems();};document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button=>button.onclick=()=>{const item={description:button.dataset.preset!,qty:1,price:0};if(items.length===1&&!items[0].description&&items[0].price===0)items=[item];else items.push(item);renderItems();});
 form.addEventListener('input',()=>{totals();persistDraft();feedback('Alterações ainda não salvas.');});
-form.onsubmit=event=>{event.preventDefault();if(!validate())return;const quote={id,fields:Object.fromEntries(new FormData(form).entries()) as Record<string,string>,items:structuredClone(items)};const next=[quote,...saved.filter(q=>q.id!==id)];try{localStorage.setItem(storageKey,JSON.stringify(next));saved=next;renderSaved();feedback('Orçamento salvo neste navegador.');}catch{feedback('Não foi possível salvar. O armazenamento pode estar cheio ou bloqueado. Salve um PDF.');}};
-$('#new').onclick=()=>{if(confirm('Iniciar novo orçamento? Salve suas alterações antes de continuar.'))reset();};
+form.onsubmit=async event=>{event.preventDefault();if(!validate())return;
+const quote:Quote={id,_version:quoteVersion,fields:Object.fromEntries(new FormData(form).entries()) as Record<string,string>,items:structuredClone(items)};
+const submit=form.querySelector<HTMLButtonElement>('button[type="submit"]')!;submit.disabled=true;
+try{const stored=await putRecord('quotes',id,quote);if(id===stored.id)quoteVersion=stored._version||0;saved=[stored,...saved.filter(q=>q.id!==stored.id)];renderSaved();persistDraft();feedback('Orçamento salvo no banco de dados.');
+try{companySettings=await putRecord('preferences','company',{company:quote.fields.company||'',companyPhone:quote.fields.companyPhone||'',_version:companySettings?._version||0});}catch{feedback('Orçamento salvo. Os dados padrão da empresa não foram atualizados; recarregue antes de alterá-los.');}
+}catch(error){feedback(error instanceof Error?error.message:'Não foi possível salvar no banco. O rascunho foi preservado.');}finally{submit.disabled=false;}};
+$('#new').onclick=async()=>{if(confirm('Iniciar novo orçamento? Salve suas alterações antes de continuar.')){try{const latest=await getRecord<Quote>('drafts','current');cloudDraftVersion=latest?._version||0;draftBlocked=false;reset();}catch(error){feedback(error instanceof Error?error.message:'Não foi possível iniciar.');}}};
 $('#print').onclick=async()=>{
 if(!validate())return;
 const root=$('#print-area');root.replaceChildren();
@@ -49,16 +55,26 @@ const terms=element('div','','pdf-terms');terms.append(element('h3','Condições
 try{await logo.decode();await document.fonts.ready;}catch{feedback('Não foi possível carregar a logo para impressão. Tente novamente.');return;}window.print();};
 const draftKey='orcaseg-draft-v1';
 const queueKey='orcaseg-catalog-items-v1';
+let pendingMutationId='';
+let draftTimer:ReturnType<typeof setTimeout>|undefined,draftSaving=false,draftPending=false;
+function snapshot(){return {id,fields:Object.fromEntries(new FormData(form).entries()) as Record<string,string>,items:structuredClone(items),_cloudVersion:cloudDraftVersion,_quoteVersion:quoteVersion,_pendingMutationId:pendingMutationId};}
 function persistDraft(){
-  try{sessionStorage.setItem(draftKey,JSON.stringify({id,fields:Object.fromEntries(new FormData(form).entries()),items}));return true;}
-  catch{feedback('Não foi possível preservar o rascunho. Salve o orçamento antes de sair.');return false;}
+try{sessionStorage.setItem(draftKey,JSON.stringify(snapshot()));if(ready&&!draftBlocked){clearTimeout(draftTimer);draftTimer=setTimeout(saveCloudDraft,900);}return true;}
+catch{feedback('Não foi possível preservar o rascunho. Salve o orçamento antes de sair.');return false;}
+}
+async function saveCloudDraft(){
+if(!ready||draftBlocked)return;
+if(draftSaving){draftPending=true;return;}draftSaving=true;
+try{pendingMutationId=crypto.randomUUID();sessionStorage.setItem(draftKey,JSON.stringify(snapshot()));const draft=snapshot();const stored=await putRecord('drafts','current',{id:draft.id,fields:draft.fields,items:draft.items,_quoteVersion:draft._quoteVersion,_mutationId:pendingMutationId,_version:cloudDraftVersion});cloudDraftVersion=stored._version||0;pendingMutationId='';sessionStorage.setItem(draftKey,JSON.stringify(snapshot()));document.querySelector('.status')!.textContent='● Rascunho na nuvem';}
+catch(error){document.querySelector('.status')!.textContent='● Rascunho local';feedback(error instanceof Error?error.message:'Rascunho ainda não sincronizado. Tente salvar o orçamento.');draftBlocked=error instanceof ApiError&&error.status===409;}
+finally{draftSaving=false;if(draftPending){draftPending=false;if(!draftBlocked)void saveCloudDraft();}}
 }
 function restoreDraft(){
   try{
     const draft=JSON.parse(sessionStorage.getItem(draftKey)||'null');
     if(!draft||typeof draft.id!=='string'||!draft.fields||typeof draft.fields!=='object'||!Array.isArray(draft.items))return;
     if(!draft.items.every((item:Item)=>item&&typeof item.description==='string'&&Number.isFinite(item.qty)&&Number.isFinite(item.price)&&(item.image===undefined||(typeof item.image==='string'&&item.image.startsWith('/products/')))))return;
-    id=draft.id;items=draft.items;
+    id=draft.id;items=draft.items;quoteVersion=Number(draft._quoteVersion)||0;cloudDraftVersion=Number(draft._cloudVersion)||0;
     Object.entries(draft.fields).forEach(([name,value])=>{const input=form.elements.namedItem(name);if((input instanceof HTMLInputElement||input instanceof HTMLTextAreaElement||input instanceof HTMLSelectElement)&&typeof value==='string')input.value=value;});
     $('#number').textContent='Proposta #'+id.slice(0,8).toUpperCase();renderItems();feedback('Rascunho recuperado.');
   }catch{feedback('Não foi possível recuperar o rascunho desta sessão.');}
@@ -82,22 +98,32 @@ const clientSelect=document.querySelector<HTMLSelectElement>('#quote-client')!;
 function populateClients(){
   const previous=clientSelect.value;clientSelect.replaceChildren();
   const empty=document.createElement('option');empty.value='';empty.textContent='Preencher manualmente';clientSelect.append(empty);
-  try{for(const client of readClients().filter(c=>!c.archived).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'))){const option=document.createElement('option');option.value=client.id;option.textContent=client.name+(client.phone?' · '+client.phone:'');clientSelect.append(option);}clientSelect.disabled=false;clientSelect.value=previous;}
+  try{for(const client of clients.filter(c=>!c.archived).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'))){const option=document.createElement('option');option.value=client.id;option.textContent=client.name+(client.phone?' · '+client.phone:'');clientSelect.append(option);}clientSelect.disabled=false;clientSelect.value=previous;}
   catch{clientSelect.disabled=true;feedback('Não foi possível ler os clientes cadastrados. Você pode preencher os dados manualmente.');}
 }
 function applyClient(clientId:string){
-  try{const client=readClients().find(c=>c.id===clientId&&!c.archived);if(!client){feedback('Cliente indisponível. Selecione outro cadastro ou preencha os dados manualmente.');return false;}
+  try{const client=clients.find(c=>c.id===clientId&&!c.archived);if(!client){feedback('Cliente indisponível. Selecione outro cadastro ou preencha os dados manualmente.');return false;}
     field('client').value=client.name;field('phone').value=client.phone;field('clientEmail').value=client.email;field('address').value=client.address;clientSelect.value=client.id;persistDraft();feedback('Dados do cliente preenchidos. Ajuste o endereço da instalação se necessário.');return true;
   }catch{feedback('Não foi possível selecionar o cliente. Verifique o armazenamento do navegador.');return false;}
 }
 function receiveClient(){try{const pending=sessionStorage.getItem(selectedClientKey);if(pending){if(applyClient(pending))sessionStorage.removeItem(selectedClientKey);}}catch{feedback('Não foi possível receber o cliente selecionado.');}}
 clientSelect.addEventListener('change',()=>{if(clientSelect.value)applyClient(clientSelect.value);else persistDraft();});
 form.addEventListener('input',event=>{const target=event.target;if(target instanceof HTMLInputElement&&['client','phone','clientEmail','address'].includes(target.name)){clientSelect.value='';persistDraft();}});
-window.addEventListener('storage',event=>{if(event.key===clientsKey)populateClients();});
-reset();load();renderSaved();populateClients();restoreDraft();ready=true;receiveProducts();receiveClient();persistDraft();
+async function initialize(){
+await initCloud();await load();clients=await readClients();companySettings=await getRecord<{company:string;companyPhone:string}>('preferences','company');
+const remote=await getRecord<Quote>('drafts','current');
+const local=JSON.parse(sessionStorage.getItem(draftKey)||'null');
+if(local&&local._quoteVersion===undefined){local._quoteVersion=saved.find(q=>q.id===local.id)?._version||0;sessionStorage.setItem(draftKey,JSON.stringify(local));}
+if(local&&remote&&(remote as Quote&{_mutationId?:string})._mutationId&&local._pendingMutationId===(remote as Quote&{_mutationId?:string})._mutationId){local._cloudVersion=remote._version;local._pendingMutationId='';sessionStorage.setItem(draftKey,JSON.stringify(local));}
+if(!sessionStorage.getItem(draftKey)&&remote){sessionStorage.setItem(draftKey,JSON.stringify({...remote,_cloudVersion:remote._version,_quoteVersion:(remote as Quote&{_quoteVersion?:number})._quoteVersion||0}));}
+reset();renderSaved();populateClients();restoreDraft();ready=true;receiveProducts();receiveClient();persistDraft();document.body.dataset.ready='true';
+const imported=sessionStorage.getItem('orcaseg-import-message');if(imported){feedback(imported);sessionStorage.removeItem('orcaseg-import-message');}
+}
+initialize().catch(showCloudError);
+window.addEventListener('online',()=>{if(ready&&!draftBlocked)void saveCloudDraft();});
 document.querySelectorAll<HTMLAnchorElement>('a[href="/produtos/"],a[href="/clientes/"]').forEach(link=>link.addEventListener('click',event=>{if(!persistDraft())event.preventDefault();}));
-window.addEventListener('pageshow',event=>{if(event.persisted){populateClients();restoreDraft();receiveProducts();receiveClient();}});
-if(location.hash==='#product-catalog'&&persistDraft())location.replace('/produtos/');
+window.addEventListener('pageshow',async event=>{if(event.persisted){try{clients=await readClients();await load();renderSaved();populateClients();restoreDraft();receiveProducts();receiveClient();}catch(error){feedback(error instanceof Error?error.message:'Não foi possível atualizar os dados.');}}});
+if(location.hash==='#product-catalog')location.replace('/produtos/');
 
 </script>
 

@@ -1,0 +1,44 @@
+---
+import SiteNav from '../components/SiteNav.astro';
+import '../styles/site.css';
+---
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width"/><meta name="robots" content="noindex"/><title>Acesso | World Segurança Eletrônica</title></head>
+<body><SiteNav active="account"/><main class="auth-main"><section><h1 id="auth-title">Entrar</h1><p id="auth-description">Acesse seus clientes e orçamentos em qualquer dispositivo.</p>
+<form id="auth-form" class="client-form" hidden>
+<label id="username-label">Usuário<input name="username" autocomplete="username" required minlength="3" maxlength="80" pattern="[a-zA-Z0-9._\-]+"/></label>
+<label id="current-label" hidden>Senha atual<input name="currentPassword" type="password" autocomplete="current-password" maxlength="256"/></label>
+<label id="password-label">Senha<input name="password" type="password" autocomplete="current-password" required maxlength="256"/></label>
+<label id="confirm-label" hidden>Confirmar nova senha<input name="confirmPassword" type="password" autocomplete="new-password" maxlength="256"/></label>
+<button class="primary" id="auth-submit" type="submit">Entrar</button></form>
+<p id="auth-status" role="status" aria-live="polite">Carregando…</p><a id="go-home" href="/" hidden>Voltar ao orçamento</a>
+</section></main><script>
+import {api} from '../lib/cloud';
+const form=document.querySelector<HTMLFormElement>('#auth-form')!;
+const status=document.querySelector<HTMLElement>('#auth-status')!;
+const button=document.querySelector<HTMLButtonElement>('#auth-submit')!;
+const field=(name:string)=>form.elements.namedItem(name) as HTMLInputElement;
+let mode='login';let setupToken=new URLSearchParams(location.hash.slice(1)).get('ativar')||'';
+if(setupToken)history.replaceState(null,'',location.pathname+location.search);
+const destination=()=>{const value=new URLSearchParams(location.search).get('voltar');return value&&['/','/clientes/','/produtos/'].includes(value)?value:'/';};
+async function start(){
+  try{const result=await api<{authenticated:boolean;setupRequired:boolean;username:string}>('auth');
+    if(result.setupRequired){
+      if(!setupToken){status.textContent='Use o link privado de ativação fornecido para criar o primeiro acesso.';return;}
+      mode='setup';document.querySelector('#auth-title')!.textContent='Criar acesso';document.querySelector('#auth-description')!.textContent='Defina o usuário e uma senha com pelo menos 12 caracteres. O link de ativação funciona uma única vez.';
+      field('password').minLength=12;field('password').autocomplete='new-password';field('confirmPassword').required=true;document.querySelector<HTMLElement>('#confirm-label')!.hidden=false;button.textContent='Criar acesso';
+    }else if(result.authenticated){
+      if(!new URLSearchParams(location.search).has('conta')){location.replace(destination());return;}
+      mode='password';document.querySelector('#auth-title')!.textContent='Alterar senha';document.querySelector('#auth-description')!.textContent='Conta: '+result.username+'. A alteração encerra as outras sessões.';
+      document.querySelector<HTMLElement>('#username-label')!.hidden=true;field('username').required=false;
+      document.querySelector<HTMLElement>('#current-label')!.hidden=false;field('currentPassword').required=true;
+      field('password').minLength=12;field('password').autocomplete='new-password';field('confirmPassword').required=true;document.querySelector<HTMLElement>('#confirm-label')!.hidden=false;button.textContent='Salvar nova senha';document.querySelector<HTMLElement>('#go-home')!.hidden=false;
+    }
+    form.hidden=false;status.textContent='';
+  }catch{status.textContent='Não foi possível conectar. Recarregue a página para tentar novamente.';}
+}
+form.onsubmit=async event=>{event.preventDefault();if(!form.reportValidity())return;if(mode!=='login'&&field('password').value!==field('confirmPassword').value){status.textContent='As senhas não coincidem.';return;}
+  button.disabled=true;status.textContent='Aguarde…';
+  try{await api('auth',{method:'POST',body:JSON.stringify({action:mode,username:field('username').value,password:field('password').value,currentPassword:field('currentPassword').value,token:setupToken})});setupToken='';location.replace(destination());}
+  catch(error){status.textContent=error instanceof Error?error.message:'Não foi possível entrar.';button.disabled=false;}
+};start();
+</script></body></html>

@@ -1,0 +1,10 @@
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+const local=process.argv.includes('--local');
+const catalog=JSON.parse(readFileSync('src/data/products.json','utf8'));
+const quote=value=>"'"+value.replaceAll("'","''")+"'";
+mkdirSync('.local',{recursive:true});
+const file='.local/catalog.sql';
+writeFileSync(file,catalog.products.map(product=>`INSERT INTO products(id,data) VALUES(${quote(product.id)},${quote(JSON.stringify(product))}) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP;`).join('\n'));
+const result=spawnSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','d1','execute','orcaseg-world',local?'--local':'--remote','--file',file,'--yes'],{stdio:'inherit'});
+process.exitCode=result.status??1;

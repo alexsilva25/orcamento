@@ -1,1 +1,20 @@
-{"name":"orcamento-seguranca","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"astro dev --host 127.0.0.1","build":"astro build","preview":"astro preview --host 127.0.0.1"},"dependencies":{"astro":"^7.4.2"}}
+{
+  "name": "orcamento-seguranca",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1",
+    "dev:cloud": "npm run build && wrangler pages dev dist",
+    "test:database": "npm run build && node scripts/test-database.mjs",
+    "db:catalog": "node scripts/seed-database-catalog.mjs"
+  },
+  "dependencies": {
+    "astro": "^7.4.2"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0"
+  }
+}

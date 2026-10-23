@@ -8,6 +8,15 @@ const {active='quote'} = Astro.props;
       <a href="/" class:list={{selected:active==='quote'}} aria-current={active==='quote'?'page':undefined}>Orçamentos</a>
       <a href="/produtos/" class:list={{selected:active==='catalog'}} aria-current={active==='catalog'?'page':undefined}>Produtos</a>
       <a href="/clientes/" class:list={{selected:active==='clients'}} aria-current={active==='clients'?'page':undefined}>Clientes</a>
+      <a href="/entrar/" data-auth-link>Entrar</a>
+      <button type="button" class="logout-button" hidden>Sair</button>
     </nav>
   </div>
 </div>
+<script>
+import {api} from '../lib/cloud';
+const authLink=document.querySelector<HTMLAnchorElement>('[data-auth-link]')!;
+const logout=document.querySelector<HTMLButtonElement>('.logout-button')!;
+api<{authenticated:boolean}>('auth').then(status=>{if(status.authenticated){authLink.textContent='Conta';authLink.href='/entrar/?conta';logout.hidden=false;}}).catch(()=>{});
+logout.onclick=async()=>{logout.disabled=true;try{await api('auth',{method:'POST',body:JSON.stringify({action:'logout'})});sessionStorage.removeItem('orcaseg-draft-v1');sessionStorage.removeItem('orcaseg-catalog-items-v1');sessionStorage.removeItem('orcaseg-selected-client-v1');location.assign('/entrar/');}catch{logout.disabled=false;logout.textContent='Tentar sair';}};
+</script>

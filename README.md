@@ -1,47 +1,64 @@
-# OrçaSeg
+# OrçaSeg — World Segurança Eletrônica
 
-Site estático em Astro para criar orçamentos de equipamentos e serviços de segurança. Inclui cadastro do cliente, itens, desconto, despesas adicionais, condições, armazenamento no navegador e impressão em PDF.
+Interface Astro com orçamento como página principal, catálogo, cadastro de clientes e PDF minimalista. A API usa Cloudflare Pages Functions e o banco Cloudflare D1 `orcaseg-world`, pelo binding `DB` de `wrangler.toml`.
 
 ## Desenvolvimento
 
-Configurado e validado com Node.js 25.0.0 e npm.
+Node 25.0.0 e dependências fixadas em package-lock.json.
 
 ```sh
-npm install
-npm run dev
-npm run build
-npm run preview
+npm ci
+npx wrangler d1 execute orcaseg-world --local --file migrations/0001_storage.sql --yes
+npm run db:catalog -- --local
+npm run dev:cloud
 ```
 
-## Cloudflare Pages
+`npm run dev` serve somente a interface Astro. `dev:cloud` compila e inicia interface, API e D1 local. Use conta ou token fictício local, sem copiar senhas ou sessões de produção.
 
-No painel Cloudflare, crie um projeto Pages e conecte o repositório `alexsilva25/orcamento`.
+## Publicação
 
-- Comando de build: `npm run build`
-- Diretório de saída: `dist`
-- Versão do Node: 25.0.0 (variável de build `NODE_VERSION`)
-- Escolha a branch que contém o código.
+Pages conectado a alexsilva25/orcamento, branch codex/orcamento-seguranca. Build `npm run build`, saída `dist`, Node 25.0.0. Cada push publica interface e API da pasta functions/. O binding DB é configurado no wrangler.toml.
 
-O Astro gera HTML estático; não precisa de adaptador, banco de dados ou variáveis secretas. Cada push na branch conectada inicia uma publicação.
+Nunca publique a pasta .local/: contém o link privado de ativação, bases de teste e possíveis backups. Não coloque credenciais em variáveis públicas.
 
-## Navegação
+## Banco e acesso
 
-A página inicial `/` abre o orçamento. O catálogo fica em `/produtos/`, com seleção de vários produtos e retorno ao orçamento. Os dados em edição ficam no sessionStorage da aba para preservar cliente, itens, valores e condições ao navegar entre as páginas. Os produtos selecionados são recebidos uma única vez, inclusive após recarregar. “Salvar orçamento” continua gravando a proposta no localStorage. Rascunhos da sessão não substituem o salvamento definitivo.
+Tabelas: accounts, sessions, setup, rate_limits, products, clients, quotes, drafts e preferences.
 
-O layout usa navegação superior compacta, tons neutros com azul da marca e painéis recolhíveis para empresa e condições. Links antigos com `/#product-catalog` encaminham ao catálogo.
+Clientes e propostas são documentos JSON validados, com versão e data de atualização. Os itens ficam dentro da proposta, preservando preços e contato daquele momento. Dados da empresa são gravados em preferences ao salvar uma proposta. Rascunhos sincronizam após uma pausa na edição; a cópia temporária em sessionStorage preserva edições durante navegação e falhas de rede. O indicador informa quando o rascunho está na nuvem. Um conflito impede sobrescrever uma edição de outro dispositivo; salve sua proposta e atualize a página ou inicie um novo rascunho.
 
-## Clientes
+O sistema tem uma conta administrativa da empresa, sem cadastro público. Clientes, propostas, rascunhos e preferências exigem sessão. Apenas o catálogo é público.
 
-A página `/clientes/` cadastra nome/razão social, telefone, e-mail, endereço e observações no localStorage (`orcaseg-clients-v1`). Inclui busca, edição, arquivamento recuperável e restauração. Os cadastros ficam apenas no navegador, sem sincronização entre dispositivos.
+O arquivo privado `.local/ativar-acesso.txt` contém o link inicial para o proprietário criar usuário e senha. O token fica no banco somente como hash e funciona uma vez. O fragmento do link é removido do endereço antes do formulário ser enviado.
 
-“Usar no orçamento” e o seletor “Cliente cadastrado” preenchem os dados de contato mantendo itens, valores e demais campos do rascunho. O e-mail é incluído na impressão/PDF quando informado; observações internas do cadastro não são copiadas à proposta. Os orçamentos guardam os dados do cliente no momento do salvamento: editar ou arquivar um cadastro não altera propostas anteriores.
+Senhas usam PBKDF2-SHA256, sal individual e 100.000 iterações, limite Web Crypto do runtime. Sessões aleatórias de 256 bits usam cookie HttpOnly, Secure em HTTPS e SameSite=Strict, com validade de sete dias. O banco guarda o hash do token. Login, ativação e troca de senha têm limite de tentativas; mutações verificam a origem. Alterar a senha encerra outras sessões. A troca fica em Conta; recuperação administrativa depende do proprietário da conta Cloudflare.
 
-## Dados
+Atualizações exigem a versão lida para evitar perda de alterações. Clientes podem ser arquivados/restaurados. A exclusão de proposta mantém uma marca no banco para impedir que importações antigas a recriem.
 
-O catálogo contém 476 itens/ofertas em 32 categorias, com consultas em 21 e 23/10/2026: câmeras, kits, gravadores, centrais de alarme, sensores de presença, abertura e barreira, sirenes, cercas elétricas, concertinas, baterias, cabos, fontes, conectores, fechaduras, interfones, automatizadores, armazenamento, nobreaks e acessórios. Fotografias reais ficam em `public/products/`; preços, condição de pagamento, URL da oferta, origem da imagem e data da consulta ficam em `src/data/products.json`. A foto acompanha o produto adicionado ao orçamento e à impressão/PDF.
+Após entrar, clientes e propostas antigos daquele navegador são importados de forma idempotente: IDs existentes não são sobrescritos. As cópias locais antigas são preservadas. Faça o primeiro acesso no navegador onde os cadastros antigos foram feitos e repita nos outros navegadores anteriormente usados, se necessário. Dados locais inválidos geram aviso e permanecem intactos.
 
-Fontes: loja oficial Intelbras, revenda Intelbras Eletro, Detecta Company, TotalSeg, Kyoto Concertina, SEGCFTV, FuturaSeg e Zalon. É uma seleção das ofertas com foto e preço públicos encontrados nessas fontes, não a totalidade dos produtos de segurança do mercado. Ofertas sem preço público ou fotografia verificável não foram cadastradas; a última ampliação registra os itens ignorados em `scripts/catalog-import-report.json`. Os preços são referências de varejo, sem frete, instalação ou margem de revenda; não são atualizados automaticamente. Cada cartão mostra a data da sua consulta. O preço no orçamento pode ser editado, e a embalagem segue a descrição da oferta (unidade, par, rolo ou kit).
+O PDF é gerado a partir da proposta, sem guardar outro arquivo binário. Fotos permanecem na hospedagem; seus caminhos e fontes ficam no banco. Não há envio automático ao cliente.
 
-Para refazer a pesquisa manualmente, execute `node scripts/import-catalog.mjs` depois `node scripts/expand-catalog.mjs` e `node scripts/import-fence-cables.mjs`, confira o JSON e as imagens, rode o build e envie as alterações. Para atualizar apenas as fontes da ampliação, execute somente o segundo comando. Esses comandos fazem consultas públicas e baixam as fotografias; não são executados no build da Cloudflare. As fontes podem mudar preços, disponibilidade ou estrutura de página. A busca aceita múltiplas palavras e desconsidera acentos; filtros por categoria e marca podem ser combinados.
+## Testes e manutenção
 
-Os orçamentos são salvos somente no localStorage do navegador e não sincronizam entre computadores. Limpar os dados do site remove os orçamentos. Use “Imprimir / Salvar PDF” para guardar uma cópia. Não há envio ao cliente ou autenticação nesta versão.
+`npm run test:database` cria um banco local isolado e verifica autenticação, sessões, CSRF, CRUD, conflitos, arquivamento/restauração, importação repetida, exclusão e catálogo. Nunca altera dados de produção.
+
+Alterações de schema devem ficar em SQL versionado em migrations/, sem remover dados existentes por padrão. Aplique novas migrações explicitamente na conta correta antes de publicar código dependente delas.
+
+Backup privado:
+
+```sh
+npx wrangler d1 export orcaseg-world --remote --output .local/backup.sql
+```
+
+O arquivo contém dados pessoais e hashes de acesso e deve ficar fora do Git. Confira D1 Time Travel no painel antes de restaurar versões.
+
+## Catálogo
+
+476 ofertas em 32 categorias, pesquisadas em 21 e 23/10/2026: câmeras, kits, gravadores, alarmes, sensores, cercas elétricas, concertinas, cabos, baterias, fontes, conectores, fechaduras, interfones, automatizadores, armazenamento, nobreaks e acessórios.
+
+A página carrega o catálogo do D1 por /api/products. src/data/products.json é a fonte versionada de importação; fotos reais ficam em public/products/. Cada registro preserva preço, condição, fonte e data da pesquisa. A foto aparece na tela da proposta; o PDF usa tabela compacta sem fotos.
+
+Fontes: loja oficial Intelbras, Intelbras Eletro, Detecta Company, TotalSeg, Kyoto Concertina, SEGCFTV, FuturaSeg e Zalon. A seleção não cobre todo o mercado. Preços de varejo não incluem frete, instalação ou margem e não se atualizam automaticamente. Ajuste o valor de venda na proposta; a embalagem segue o anúncio.
+
+Para atualizar a pesquisa use scripts/import-catalog.mjs, expand-catalog.mjs e import-fence-cables.mjs. Confira JSON/fotos e execute `npm run db:catalog`, depois o build e o push. db:catalog atualiza produtos no D1 remoto sem tocar em clientes ou propostas; acrescente `-- --local` para desenvolvimento. A pesquisa não roda automaticamente no build. Consulte scripts/catalog-import-report.json para ofertas ignoradas.
